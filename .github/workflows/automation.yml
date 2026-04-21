@@ -4,6 +4,69 @@ on:
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
+    inputs:
+      province:
+        description: 'Province'
+        required: false
+        default: 'Sindh'
+        type: choice
+        options:
+          - Sindh
+          - Punjab
+          - KPK
+          - Balochistan
+          - Islamabad Capital Territory
+          - Gilgit-Baltistan
+          - AJK
+      district:
+        description: 'District (leave blank for all)'
+        required: false
+        default: ''
+        type: string
+      institute:
+        description: 'Institute'
+        required: false
+        default: 'SELD'
+        type: choice
+        options:
+          - SELD
+          - FDE
+          - FGEI
+          - SEF
+          - Private
+          - Non-Profit
+      date_from:
+        description: 'Date From (MM/DD/YYYY)'
+        required: false
+        default: '12/01/2025'
+        type: string
+      date_to:
+        description: 'Date To (MM/DD/YYYY)'
+        required: false
+        default: '01/31/2026'
+        type: string
+      status:
+        description: 'Status filter'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - approved
+          - pending
+          - rejected
+      calculation:
+        description: 'Calculation to run'
+        required: false
+        default: 'Active Schools'
+        type: choice
+        options:
+          - Active Schools
+      sheet_id:
+        description: 'Google Sheet ID (leave blank for default)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   run:
@@ -37,3 +100,11 @@ jobs:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          PARAM_PROVINCE:    ${{ inputs.province }}
+          PARAM_DISTRICT:    ${{ inputs.district }}
+          PARAM_INSTITUTE:   ${{ inputs.institute }}
+          PARAM_DATE_FROM:   ${{ inputs.date_from }}
+          PARAM_DATE_TO:     ${{ inputs.date_to }}
+          PARAM_STATUS:      ${{ inputs.status }}
+          PARAM_CALCULATION: ${{ inputs.calculation }}
+          PARAM_SHEET_ID:    ${{ inputs.sheet_id }}

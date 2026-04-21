@@ -24,16 +24,35 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 
+# ── Runtime parameters (from workflow_dispatch inputs or defaults) ────────────
+
+PROVINCE    = os.environ.get("PARAM_PROVINCE")    or "Sindh"
+DISTRICT    = os.environ.get("PARAM_DISTRICT")    or ""
+INSTITUTE   = os.environ.get("PARAM_INSTITUTE")   or "SELD"
+DATE_FROM   = os.environ.get("PARAM_DATE_FROM")   or "12/01/2025"
+DATE_TO     = os.environ.get("PARAM_DATE_TO")     or "01/31/2026"
+STATUS      = os.environ.get("PARAM_STATUS")      or "all"
+CALCULATION = os.environ.get("PARAM_CALCULATION") or "Active Schools"
+SHEET_ID_OVERRIDE = os.environ.get("PARAM_SHEET_ID") or ""
+
 
 # ── Section A: Fetch Posts ────────────────────────────────────────────────────
 
 def fetch_posts() -> list[dict]:
     params = {
-        "province": "Sindh",
-        "institute": "SELD",
-        "dateFrom": "12/01/2025",
-        "dateTo": "01/31/2026",
+        "province": PROVINCE,
+        "institute": INSTITUTE,
+        "dateFrom": DATE_FROM,
+        "dateTo": DATE_TO,
     }
+    if DISTRICT:
+        params["district"] = DISTRICT
+    if STATUS and STATUS != "all":
+        params["status"] = STATUS
+
+    print(f"Filters: province={PROVINCE}, institute={INSTITUTE}, district={DISTRICT or 'all'}, "
+          f"dateFrom={DATE_FROM}, dateTo={DATE_TO}, status={STATUS}")
+
     with httpx.Client(timeout=60) as client:
         resp = client.get(f"{BASE_URL}/posts", params=params)
         resp.raise_for_status()
@@ -77,10 +96,9 @@ async def _fetch_all_schools_async() -> dict[str, str]:
 
             for page_data in results:
                 for school in page_data:
-                    # Actual API field names: Province (capital P), institute (lowercase)
                     province = str(school.get("Province", "")).strip().lower()
                     institute = str(school.get("institute", "")).strip().upper()
-                    if province == "sindh" and institute == "SELD":
+                    if province == PROVINCE.lower() and institute == INSTITUTE.upper():
                         name = str(school.get("SchoolName", "")).strip()
                         emis = str(school.get("Emiscode", "")).strip()
                         if name:
@@ -107,7 +125,7 @@ def fetch_schools() -> dict[str, str]:
 
     print(f"Cache missing or stale. Fetching all {TOTAL_PAGES} pages of schools...")
     school_map = asyncio.run(_fetch_all_schools_async())
-    print(f"Fetched {len(school_map)} Sindh/SELD schools.")
+    print(f"Fetched {len(school_map)} {PROVINCE}/{INSTITUTE} schools.")
 
     with CACHE_FILE.open("w") as f:
         json.dump(school_map, f)
@@ -115,12 +133,11 @@ def fetch_schools() -> dict[str, str]:
     return school_map
 
 
-# ── Section C: Merge & Calculate Active Schools ───────────────────────────────
+# ── Section C: Calculations ───────────────────────────────────────────────────
 
-def merge_and_calculate(posts: list[dict], school_map: dict[str, str]) -> list[list]:
+def calc_active_schools(posts: list[dict], school_map: dict[str, str]) -> list[list]:
     counts: Counter = Counter()
     for post in posts:
-        # Actual posts field name is schoolName (camelCase)
         name = str(post.get("schoolName", "")).strip()
         if name:
             counts[name] += 1
@@ -136,11 +153,19 @@ def merge_and_calculate(posts: list[dict], school_map: dict[str, str]) -> list[l
     return rows
 
 
+def run_calculation(posts: list[dict], school_map: dict[str, str]) -> tuple[list[list], list[str]]:
+    if CALCULATION == "Active Schools":
+        header = ["School Name", "EMIS Code", "Appearance Count"]
+        rows = calc_active_schools(posts, school_map)
+        return rows, header
+    raise ValueError(f"Unknown calculation: {CALCULATION}")
+
+
 # ── Section D: Upload to Google Sheets ───────────────────────────────────────
 
-def upload_to_sheets(rows: list[list]) -> str:
+def upload_to_sheets(rows: list[list], header: list[str]) -> str:
     sa_json = os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]
-    sheet_id = os.environ["SHEET_ID"]
+    sheet_id = SHEET_ID_OVERRIDE or os.environ["SHEET_ID"]
 
     creds = Credentials.from_service_account_info(json.loads(sa_json), scopes=SCOPES)
     gc = gspread.authorize(creds)
@@ -148,8 +173,7 @@ def upload_to_sheets(rows: list[list]) -> str:
     ws = sh.sheet1
 
     ws.clear()
-    header = [["School Name", "EMIS Code", "Appearance Count"]]
-    ws.update(range_name="A1", values=header + rows)
+    ws.update(range_name="A1", values=[header] + rows)
 
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}"
     print(f"Uploaded {len(rows)} rows to Google Sheets: {url}")
@@ -158,17 +182,19 @@ def upload_to_sheets(rows: list[list]) -> str:
 
 # ── Section E: Send Email ─────────────────────────────────────────────────────
 
-def send_email(n_active: int, sheet_url: str) -> None:
+def send_email(n_results: int, sheet_url: str) -> None:
     gmail_user = os.environ["GMAIL_USER"]
     gmail_password = os.environ["GMAIL_APP_PASSWORD"]
     recipient = os.environ["RECIPIENT_EMAIL"]
 
     msg = MIMEText(
-        f"Active schools upload completed.\n\n"
-        f"{n_active} active schools written to Google Sheets.\n\n"
+        f"Calculation completed: {CALCULATION}\n\n"
+        f"Filters: province={PROVINCE}, institute={INSTITUTE}, district={DISTRICT or 'all'}, "
+        f"dateFrom={DATE_FROM}, dateTo={DATE_TO}, status={STATUS}\n\n"
+        f"Results: {n_results} rows written to Google Sheets.\n\n"
         f"Sheet: {sheet_url}"
     )
-    msg["Subject"] = "School Reports Automation: Done"
+    msg["Subject"] = f"School Reports Automation: {CALCULATION} done"
     msg["From"] = gmail_user
     msg["To"] = recipient
 
@@ -182,17 +208,19 @@ def send_email(n_active: int, sheet_url: str) -> None:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    print(f"=== Calculation: {CALCULATION} ===\n")
+
     print("=== Step 1: Fetching posts ===")
     posts = fetch_posts()
 
     print("\n=== Step 2: Fetching schools ===")
     school_map = fetch_schools()
 
-    print("\n=== Step 3: Merging & calculating active schools ===")
-    rows = merge_and_calculate(posts, school_map)
+    print("\n=== Step 3: Running calculation ===")
+    rows, header = run_calculation(posts, school_map)
 
     print("\n=== Step 4: Uploading to Google Sheets ===")
-    sheet_url = upload_to_sheets(rows)
+    sheet_url = upload_to_sheets(rows, header)
 
     print("\n=== Step 5: Sending email ===")
     send_email(len(rows), sheet_url)
