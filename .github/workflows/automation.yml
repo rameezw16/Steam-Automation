@@ -2,7 +2,7 @@ name: School Reports Automation
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '0 8 1 */2 *'
   workflow_dispatch:
     inputs:
       province:
