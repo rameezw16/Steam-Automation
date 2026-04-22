@@ -45,23 +45,19 @@ on:
         required: false
         default: '01/31/2026'
         type: string
-      status:
-        description: 'Status filter'
+      active_schools_criteria:
+        description: 'Active Schools: count by'
         required: false
-        default: 'all'
+        default: 'Submitted Activities'
         type: choice
         options:
-          - all
-          - approved
-          - pending
-          - rejected
-      calculation:
-        description: 'Calculation to run'
+          - Submitted Activities
+          - Approved Activities
+      active_schools_threshold:
+        description: 'Active Schools: minimum activity count (default 2)'
         required: false
-        default: 'Active Schools'
-        type: choice
-        options:
-          - Active Schools
+        default: '2'
+        type: string
       sheet_id:
         description: 'Google Sheet ID (leave blank for default)'
         required: false
@@ -100,11 +96,11 @@ jobs:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-          PARAM_PROVINCE:    ${{ inputs.province }}
-          PARAM_DISTRICT:    ${{ inputs.district }}
-          PARAM_INSTITUTE:   ${{ inputs.institute }}
-          PARAM_DATE_FROM:   ${{ inputs.date_from }}
-          PARAM_DATE_TO:     ${{ inputs.date_to }}
-          PARAM_STATUS:      ${{ inputs.status }}
-          PARAM_CALCULATION: ${{ inputs.calculation }}
-          PARAM_SHEET_ID:    ${{ inputs.sheet_id }}
+          PARAM_PROVINCE:          ${{ inputs.province }}
+          PARAM_DISTRICT:          ${{ inputs.district }}
+          PARAM_INSTITUTE:         ${{ inputs.institute }}
+          PARAM_DATE_FROM:         ${{ inputs.date_from }}
+          PARAM_DATE_TO:           ${{ inputs.date_to }}
+          PARAM_ACTIVE_CRITERIA:   ${{ inputs.active_schools_criteria }}
+          PARAM_ACTIVE_THRESHOLD:  ${{ inputs.active_schools_threshold }}
+          PARAM_SHEET_ID:          ${{ inputs.sheet_id }}
