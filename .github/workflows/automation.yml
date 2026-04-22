@@ -59,7 +59,7 @@ on:
         default: '2'
         type: string
       districts:
-        description: 'Districts for breakdown (comma-separated; blank = auto-detect)'
+        description: 'Districts for breakdown (comma-separated, e.g. Lahore,Rawalpindi,Faisalabad). Leave blank to use Sindh defaults or auto-detect for other provinces.'
         required: false
         default: ''
         type: string
