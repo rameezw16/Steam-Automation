@@ -19,7 +19,7 @@ on:
           - Gilgit-Baltistan
           - AJK
       district:
-        description: 'District (leave blank for all)'
+        description: 'District(s): one district to drill down everywhere (e.g. Hyderabad), or comma-separated to control breakdown tables only (e.g. Lahore,Rawalpindi,Faisalabad). Leave blank for all.'
         required: false
         default: ''
         type: string
@@ -57,11 +57,6 @@ on:
         description: 'Active Schools: minimum activity count (default 2)'
         required: false
         default: '2'
-        type: string
-      districts:
-        description: 'Districts for breakdown (comma-separated, e.g. Lahore,Rawalpindi,Faisalabad). Leave blank to use Sindh defaults or auto-detect for other provinces.'
-        required: false
-        default: ''
         type: string
       sheet_id:
         description: 'Google Sheet ID (leave blank for default)'
@@ -108,5 +103,4 @@ jobs:
           PARAM_DATE_TO:           ${{ inputs.date_to }}
           PARAM_ACTIVE_CRITERIA:   ${{ inputs.active_schools_criteria }}
           PARAM_ACTIVE_THRESHOLD:  ${{ inputs.active_schools_threshold }}
-          PARAM_DISTRICTS:         ${{ inputs.districts }}
           PARAM_SHEET_ID:          ${{ inputs.sheet_id }}

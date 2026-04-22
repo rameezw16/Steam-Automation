@@ -39,14 +39,21 @@ SINDH_DISTRICTS = [
 # ── Parameters ────────────────────────────────────────────────────────────────
 
 PROVINCE          = os.environ.get("PARAM_PROVINCE")          or "Sindh"
-DISTRICT          = os.environ.get("PARAM_DISTRICT")          or ""
 INSTITUTE         = os.environ.get("PARAM_INSTITUTE")         or "SELD"
 DATE_FROM         = os.environ.get("PARAM_DATE_FROM")         or "12/01/2025"
 DATE_TO           = os.environ.get("PARAM_DATE_TO")           or "01/31/2026"
 ACTIVE_CRITERIA   = os.environ.get("PARAM_ACTIVE_CRITERIA")   or "Submitted Activities"
 ACTIVE_THRESHOLD  = int(os.environ.get("PARAM_ACTIVE_THRESHOLD") or "2")
 SHEET_ID_OVERRIDE = os.environ.get("PARAM_SHEET_ID")          or ""
-DISTRICTS_INPUT   = os.environ.get("PARAM_DISTRICTS")          or ""
+
+# Single value = drill-down filter + breakdown rows; comma-separated = breakdown rows only
+_district_raw = os.environ.get("PARAM_DISTRICT") or ""
+if "," in _district_raw:
+    DISTRICT        = ""           # no single-district drill-down
+    DISTRICTS_INPUT = _district_raw
+else:
+    DISTRICT        = _district_raw.strip()
+    DISTRICTS_INPUT = _district_raw.strip()
 
 
 # ── Section A: Data Fetching ──────────────────────────────────────────────────
