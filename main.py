@@ -46,6 +46,7 @@ DATE_TO           = os.environ.get("PARAM_DATE_TO")           or "01/31/2026"
 ACTIVE_CRITERIA   = os.environ.get("PARAM_ACTIVE_CRITERIA")   or "Submitted Activities"
 ACTIVE_THRESHOLD  = int(os.environ.get("PARAM_ACTIVE_THRESHOLD") or "2")
 SHEET_ID_OVERRIDE = os.environ.get("PARAM_SHEET_ID")          or ""
+DISTRICTS_INPUT   = os.environ.get("PARAM_DISTRICTS")          or ""
 
 
 # ── Section A: Data Fetching ──────────────────────────────────────────────────
@@ -160,6 +161,37 @@ def _school_lookup(all_schools: list[dict]) -> dict[str, dict]:
     return {s["SchoolName"]: s for s in all_schools}
 
 
+def _side_by_side(left_header: list, left_rows: list, right_header: list, right_rows: list, gap: int = 1) -> list[list]:
+    """Merge two tables side-by-side with a gap column. Header row is the first row returned."""
+    w = len(left_header)
+    out = [left_header + [""] * gap + right_header]
+    for i in range(max(len(left_rows), len(right_rows))):
+        l = list(left_rows[i]) if i < len(left_rows) else [""] * w
+        r = list(right_rows[i]) if i < len(right_rows) else [""] * len(right_header)
+        out.append(l + [""] * gap + r)
+    return out
+
+
+def get_district_list(province_sub: list[dict], all_schools: list[dict]) -> list[str]:
+    if DISTRICTS_INPUT:
+        return [d.strip() for d in DISTRICTS_INPUT.split(",") if d.strip()]
+    if PROVINCE.lower() == "sindh":
+        return SINDH_DISTRICTS
+    # Auto-detect from data for other provinces
+    districts: set[str] = set()
+    for p in province_sub:
+        d = p.get("district", "").strip()
+        if d:
+            districts.add(d)
+    for s in all_schools:
+        if (s["Province"].lower() == PROVINCE.lower()
+                and s["institute"].upper() == INSTITUTE.upper()):
+            d = s["District"].strip()
+            if d:
+                districts.add(d)
+    return sorted(districts)
+
+
 # ── Section B: Report Calculations ───────────────────────────────────────────
 
 def calc_reports_summary(overall_sub, overall_app, province_sub, province_app):
@@ -236,10 +268,11 @@ def calc_reports_by_district(province_sub, province_app, all_schools):
         if d:
             reg_by_dist[d] += 1
 
+    district_list = get_district_list(province_sub, all_schools)
     header = ["District", "Submitted", "Approved", "Not Approved", "Approval Rate",
               "Active Schools", "Registered Schools", "Active as % of Registered"]
     rows = []
-    for dist in SINDH_DISTRICTS:
+    for dist in district_list:
         sub  = sub_by_dist.get(dist, 0)
         app  = app_by_dist.get(dist, 0)
         act  = active_by_dist.get(dist, 0)
@@ -299,6 +332,71 @@ def calc_active_schools(province_sub, province_app, all_schools):
     return "Active Schools", header, [criteria_note] + rows
 
 
+# ── Raw Data Tabs ─────────────────────────────────────────────────────────────
+
+def calc_posts_data(province_sub, province_app, all_schools):
+    left_header = ["School Name", "District", "Province", "Institute"]
+    left_rows = [
+        [p.get("schoolName", ""), p.get("district", ""),
+         p.get("province", ""),  p.get("institute", "")]
+        for p in province_sub
+    ]
+
+    # Compute active school count for summary
+    sub_per = defaultdict(int)
+    app_per = defaultdict(int)
+    for p in province_sub:
+        name = p.get("schoolName", "").strip()
+        if name:
+            sub_per[name] += 1
+    for p in province_app:
+        name = p.get("schoolName", "").strip()
+        if name:
+            app_per[name] += 1
+    active_count = sum(1 for n in set(sub_per) | set(app_per)
+                       if _is_active(sub_per[n], app_per[n]))
+
+    tot_sub = len(province_sub)
+    tot_app = len(province_app)
+    right_header = ["Metric", "Value"]
+    right_rows = [
+        ["Total Submitted",  tot_sub],
+        ["Total Approved",   tot_app],
+        ["Not Approved",     tot_sub - tot_app],
+        ["Approval Rate",    _rate(tot_app, tot_sub)],
+        ["Active Schools",   active_count],
+    ]
+
+    merged = _side_by_side(left_header, left_rows, right_header, right_rows)
+    return "Posts Data", [], merged
+
+
+def calc_schools_data(all_schools):
+    filtered = [s for s in all_schools
+                if s["Province"].lower() == PROVINCE.lower()
+                and s["institute"].upper() == INSTITUTE.upper()]
+
+    left_header = ["School Name", "EMIS Code", "District", "Province", "Institute", "Level", "Cycle"]
+    left_rows = [
+        [s["SchoolName"], s["Emiscode"], s["District"],
+         s["Province"],   s["institute"], s["Level"],  s["Cycle"]]
+        for s in filtered
+    ]
+
+    by_inst = defaultdict(int)
+    for s in filtered:
+        by_inst[s["institute"].strip() or "Unknown"] += 1
+
+    right_header = ["Metric", "Value"]
+    right_rows = [["Total Registered", len(filtered)], ["", ""]]
+    right_rows.append(["By Institute", "Count"])
+    for inst, cnt in sorted(by_inst.items(), key=lambda x: -x[1]):
+        right_rows.append([inst, cnt])
+
+    merged = _side_by_side(left_header, left_rows, right_header, right_rows)
+    return "Schools - SELD Data", [], merged
+
+
 # ── Section C: Schools Calculations ──────────────────────────────────────────
 
 def calc_schools_summary(all_schools):
@@ -338,9 +436,10 @@ def calc_schools_by_district(all_schools):
         if d:
             filt_dist[d] += 1
 
+    district_list = get_district_list([], all_schools)
     header = ["District", "Total Registered (All Institutes)",
               f"{PROVINCE}/{INSTITUTE} Registered"]
-    rows = [[d, all_dist.get(d, 0), filt_dist.get(d, 0)] for d in SINDH_DISTRICTS]
+    rows = [[d, all_dist.get(d, 0), filt_dist.get(d, 0)] for d in district_list]
     rows.append(["TOTAL", sum(r[1] for r in rows), sum(r[2] for r in rows)])
     return "Schools - By District", header, rows
 
@@ -498,9 +597,11 @@ def main() -> None:
 
     print("\n=== Step 3: Running calculations ===")
     tab_data = [
+        calc_posts_data(province_sub, province_app, all_schools),
         calc_reports_summary(overall_sub, overall_app, province_sub, province_app),
         calc_reports_by_district(province_sub, province_app, all_schools),
         calc_active_schools(province_sub, province_app, all_schools),
+        calc_schools_data(all_schools),
         calc_schools_summary(all_schools),
         calc_schools_by_district(all_schools),
         calc_schools_level_x_cycle(all_schools),

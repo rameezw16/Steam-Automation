@@ -58,6 +58,11 @@ on:
         required: false
         default: '2'
         type: string
+      districts:
+        description: 'Districts for breakdown (comma-separated; blank = auto-detect)'
+        required: false
+        default: ''
+        type: string
       sheet_id:
         description: 'Google Sheet ID (leave blank for default)'
         required: false
@@ -103,4 +108,5 @@ jobs:
           PARAM_DATE_TO:           ${{ inputs.date_to }}
           PARAM_ACTIVE_CRITERIA:   ${{ inputs.active_schools_criteria }}
           PARAM_ACTIVE_THRESHOLD:  ${{ inputs.active_schools_threshold }}
+          PARAM_DISTRICTS:         ${{ inputs.districts }}
           PARAM_SHEET_ID:          ${{ inputs.sheet_id }}
