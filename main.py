@@ -197,27 +197,39 @@ def get_district_list(province_sub: list[dict], all_schools: list[dict]) -> list
 
 # ── Section B: Report Calculations ───────────────────────────────────────────
 
-def calc_reports_summary(overall_sub, overall_app, province_sub, province_app):
+def calc_reports_summary(overall_sub, overall_app, province_sub, province_app,
+                         prov_only_sub=None, prov_only_app=None):
     header = ["", "Submitted", "Approved", "Not Approved", "Approval Rate"]
-    prov_label = FILTER_LABEL
 
     rows = [
         ["Overall Program",
          len(overall_sub), len(overall_app),
          len(overall_sub) - len(overall_app),
          _rate(len(overall_app), len(overall_sub))],
-        [prov_label,
-         len(province_sub), len(province_app),
-         len(province_sub) - len(province_app),
-         _rate(len(province_app), len(province_sub))],
     ]
+
+    if PROVINCE and INSTITUTE and prov_only_sub is not None:
+        rows.append([PROVINCE,
+                     len(prov_only_sub), len(prov_only_app),
+                     len(prov_only_sub) - len(prov_only_app),
+                     _rate(len(prov_only_app), len(prov_only_sub))])
+        rows.append([INSTITUTE,
+                     len(province_sub), len(province_app),
+                     len(province_sub) - len(province_app),
+                     _rate(len(province_app), len(province_sub))])
+    else:
+        rows.append([FILTER_LABEL,
+                     len(province_sub), len(province_app),
+                     len(province_sub) - len(province_app),
+                     _rate(len(province_app), len(province_sub))])
 
     if DISTRICT:
         dl = DISTRICT.strip().lower()
         dist_sub = [p for p in province_sub if p.get("district", "").strip().lower() == dl]
         dist_app = [p for p in province_app if p.get("district", "").strip().lower() == dl]
+        dist_label = (INSTITUTE or PROVINCE or "Filter") + f"/{DISTRICT}"
         rows.append([
-            f"{prov_label}/{DISTRICT}",
+            dist_label,
             len(dist_sub), len(dist_app),
             len(dist_sub) - len(dist_app),
             _rate(len(dist_app), len(dist_sub)),
@@ -438,6 +450,14 @@ def calc_schools_cycle_x_level(all_schools):
 
 # ── Section D: Upload ─────────────────────────────────────────────────────────
 
+def _col_letter(n: int) -> str:
+    s = ""
+    while n > 0:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
 def _get_or_create_ws(sh, title: str):
     try:
         return sh.worksheet(title)
@@ -453,12 +473,17 @@ def upload_all_tabs(tab_data: list[tuple]) -> str:
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(sheet_id)
 
+    date_label = f"{DATE_FROM} – {DATE_TO}"
+
     for tab_name, header, rows in tab_data:
         ws = _get_or_create_ws(sh, tab_name)
         ws.clear()
         data = ([header] if header else []) + rows
         if data:
             ws.update(range_name="A1", values=data)
+        max_cols = max((len(row) for row in data), default=0)
+        if max_cols:
+            ws.update(range_name=f"{_col_letter(max_cols + 2)}1", values=[[date_label]])
         print(f"  Written: {tab_name} ({len(rows)} rows)")
 
     ordered = [sh.worksheet(name) for name, _, _ in tab_data]
@@ -507,22 +532,32 @@ def main() -> None:
     if PROVINCE:  prov_params["province"]  = PROVINCE
     if INSTITUTE: prov_params["institute"] = INSTITUTE
 
-    print("=== Step 1: Fetching posts (4 calls) ===")
+    print("=== Step 1: Fetching posts ===")
     print("  Fetching overall submitted...")
     overall_sub = fetch_posts(date_params)
     print(f"  -> {len(overall_sub)} posts")
 
     print("  Fetching overall approved...")
     overall_app = fetch_posts({**date_params, "status": "approved"})
-    print(f"  ->{len(overall_app)} posts")
+    print(f"  -> {len(overall_app)} posts")
 
     print(f"  Fetching {FILTER_LABEL} submitted...")
     province_sub = fetch_posts(prov_params)
-    print(f"  ->{len(province_sub)} posts")
+    print(f"  -> {len(province_sub)} posts")
 
     print(f"  Fetching {FILTER_LABEL} approved...")
     province_app = fetch_posts({**prov_params, "status": "approved"})
-    print(f"  ->{len(province_app)} posts")
+    print(f"  -> {len(province_app)} posts")
+
+    prov_only_sub = prov_only_app = None
+    if PROVINCE and INSTITUTE:
+        prov_base = {**date_params, "province": PROVINCE}
+        print(f"  Fetching {PROVINCE} submitted...")
+        prov_only_sub = fetch_posts(prov_base)
+        print(f"  -> {len(prov_only_sub)} posts")
+        print(f"  Fetching {PROVINCE} approved...")
+        prov_only_app = fetch_posts({**prov_base, "status": "approved"})
+        print(f"  -> {len(prov_only_app)} posts")
 
     print("\n=== Step 2: Fetching schools ===")
     all_schools = fetch_all_schools()
@@ -530,7 +565,7 @@ def main() -> None:
 
     print("\n=== Step 3: Running calculations ===")
     tab_data = [
-        calc_reports_summary(overall_sub, overall_app, province_sub, province_app),
+        calc_reports_summary(overall_sub, overall_app, province_sub, province_app, prov_only_sub, prov_only_app),
         calc_reports_by_district(province_sub, province_app, all_schools),
         calc_active_schools(province_sub, province_app, all_schools),
         calc_schools_summary(all_schools),
