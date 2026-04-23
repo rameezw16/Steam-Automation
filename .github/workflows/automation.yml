@@ -24,17 +24,16 @@ on:
         default: ''
         type: string
       institute:
-        description: 'Institute'
+        description: >-
+          Institute to filter by. Leave blank for all institutes.
+          Sindh: SELD, SEF, FGEI, Non-Profit, Private |
+          Punjab: SED-Punjab, FDE, FGEI, PEF, Non-Profit, Private |
+          KPK: ESED-KP, FGEI, Private |
+          Balochistan: SED-Balochistan, FGEI |
+          ICT: FDE | GB: ESED-GB, Private | AJK: ESED-GB, FGEI
         required: false
         default: 'SELD'
-        type: choice
-        options:
-          - SELD
-          - FDE
-          - FGEI
-          - SEF
-          - Private
-          - Non-Profit
+        type: string
       date_from:
         description: 'Date From (MM/DD/YYYY)'
         required: false

@@ -39,7 +39,8 @@ SINDH_DISTRICTS = [
 # ── Parameters ────────────────────────────────────────────────────────────────
 
 PROVINCE          = os.environ.get("PARAM_PROVINCE")          or "Sindh"
-INSTITUTE         = os.environ.get("PARAM_INSTITUTE")         or "SELD"
+INSTITUTE         = os.environ.get("PARAM_INSTITUTE")         or ""
+FILTER_LABEL      = "/".join(p for p in [PROVINCE, INSTITUTE] if p) or "Overall"
 DATE_FROM         = os.environ.get("PARAM_DATE_FROM")         or "12/01/2025"
 DATE_TO           = os.environ.get("PARAM_DATE_TO")           or "01/31/2026"
 ACTIVE_CRITERIA   = os.environ.get("PARAM_ACTIVE_CRITERIA")   or "Submitted Activities"
@@ -168,6 +169,14 @@ def _school_lookup(all_schools: list[dict]) -> dict[str, dict]:
     return {s["SchoolName"]: s for s in all_schools}
 
 
+def _matches_filter(s: dict) -> bool:
+    if PROVINCE and s["Province"].lower() != PROVINCE.lower():
+        return False
+    if INSTITUTE and s["institute"].upper() != INSTITUTE.upper():
+        return False
+    return True
+
+
 def get_district_list(province_sub: list[dict], all_schools: list[dict]) -> list[str]:
     if DISTRICTS_INPUT:
         return [d.strip() for d in DISTRICTS_INPUT.split(",") if d.strip()]
@@ -179,8 +188,7 @@ def get_district_list(province_sub: list[dict], all_schools: list[dict]) -> list
         if d:
             districts.add(d)
     for s in all_schools:
-        if (s["Province"].lower() == PROVINCE.lower()
-                and s["institute"].upper() == INSTITUTE.upper()):
+        if _matches_filter(s):
             d = s["District"].strip()
             if d:
                 districts.add(d)
@@ -191,7 +199,7 @@ def get_district_list(province_sub: list[dict], all_schools: list[dict]) -> list
 
 def calc_reports_summary(overall_sub, overall_app, province_sub, province_app):
     header = ["", "Submitted", "Approved", "Not Approved", "Approval Rate"]
-    prov_label = f"{PROVINCE}/{INSTITUTE}"
+    prov_label = FILTER_LABEL
 
     rows = [
         ["Overall Program",
@@ -254,9 +262,7 @@ def calc_reports_by_district(province_sub, province_app, all_schools):
                 active_by_dist[d] += 1
 
     # Registered SELD schools per district
-    filtered = [s for s in all_schools
-                if s["Province"].lower() == PROVINCE.lower()
-                and s["institute"].upper() == INSTITUTE.upper()]
+    filtered = [s for s in all_schools if _matches_filter(s)]
     reg_by_dist = defaultdict(int)
     for s in filtered:
         d = s["District"].strip()
@@ -350,9 +356,7 @@ def calc_schools_summary(all_schools):
 
 
 def calc_schools_by_district(all_schools):
-    filtered = [s for s in all_schools
-                if s["Province"].lower() == PROVINCE.lower()
-                and s["institute"].upper() == INSTITUTE.upper()]
+    filtered = [s for s in all_schools if _matches_filter(s)]
 
     all_dist  = defaultdict(int)
     filt_dist = defaultdict(int)
@@ -366,7 +370,7 @@ def calc_schools_by_district(all_schools):
             filt_dist[d] += 1
 
     header = ["District", "Total Registered (All Institutes)",
-              f"{PROVINCE}/{INSTITUTE} Registered"]
+              f"{FILTER_LABEL} Registered"]
     rows = [[d, all_dist.get(d, 0), filt_dist.get(d, 0)] for d in get_district_list([], all_schools)]
     rows.append(["TOTAL", sum(r[1] for r in rows), sum(r[2] for r in rows)])
     return "Schools - By District", header, rows
@@ -411,11 +415,9 @@ def _matrix_section(schools: list[dict], label: str, level_x_cycle: bool) -> lis
 
 
 def calc_schools_level_x_cycle(all_schools):
-    filtered = [s for s in all_schools
-                if s["Province"].lower() == PROVINCE.lower()
-                and s["institute"].upper() == INSTITUTE.upper()]
+    filtered = [s for s in all_schools if _matches_filter(s)]
     rows = _matrix_section(all_schools, "Overall Program", True)
-    rows += _matrix_section(filtered, f"{PROVINCE}/{INSTITUTE}", True)
+    rows += _matrix_section(filtered, FILTER_LABEL, True)
     if DISTRICT:
         dl = DISTRICT.strip().lower()
         rows += _matrix_section(
@@ -424,11 +426,9 @@ def calc_schools_level_x_cycle(all_schools):
 
 
 def calc_schools_cycle_x_level(all_schools):
-    filtered = [s for s in all_schools
-                if s["Province"].lower() == PROVINCE.lower()
-                and s["institute"].upper() == INSTITUTE.upper()]
+    filtered = [s for s in all_schools if _matches_filter(s)]
     rows = _matrix_section(all_schools, "Overall Program", False)
-    rows += _matrix_section(filtered, f"{PROVINCE}/{INSTITUTE}", False)
+    rows += _matrix_section(filtered, FILTER_LABEL, False)
     if DISTRICT:
         dl = DISTRICT.strip().lower()
         rows += _matrix_section(
@@ -476,7 +476,7 @@ def send_email(tab_names: list[str], sheet_url: str) -> None:
     gmail_password = os.environ["GMAIL_APP_PASSWORD"]
     recipient      = os.environ["RECIPIENT_EMAIL"]
 
-    filters = (f"province={PROVINCE}, institute={INSTITUTE}, "
+    filters = (f"province={PROVINCE or 'all'}, institute={INSTITUTE or 'all'}, "
                f"district={DISTRICT or 'all'}, "
                f"dateFrom={DATE_FROM}, dateTo={DATE_TO}")
 
@@ -503,7 +503,9 @@ def send_email(tab_names: list[str], sheet_url: str) -> None:
 
 def main() -> None:
     date_params = {"dateFrom": DATE_FROM, "dateTo": DATE_TO}
-    prov_params = {"province": PROVINCE, "institute": INSTITUTE, **date_params}
+    prov_params = {**date_params}
+    if PROVINCE:  prov_params["province"]  = PROVINCE
+    if INSTITUTE: prov_params["institute"] = INSTITUTE
 
     print("=== Step 1: Fetching posts (4 calls) ===")
     print("  Fetching overall submitted...")
@@ -514,11 +516,11 @@ def main() -> None:
     overall_app = fetch_posts({**date_params, "status": "approved"})
     print(f"  ->{len(overall_app)} posts")
 
-    print(f"  Fetching {PROVINCE}/{INSTITUTE} submitted...")
+    print(f"  Fetching {FILTER_LABEL} submitted...")
     province_sub = fetch_posts(prov_params)
     print(f"  ->{len(province_sub)} posts")
 
-    print(f"  Fetching {PROVINCE}/{INSTITUTE} approved...")
+    print(f"  Fetching {FILTER_LABEL} approved...")
     province_app = fetch_posts({**prov_params, "status": "approved"})
     print(f"  ->{len(province_app)} posts")
 
