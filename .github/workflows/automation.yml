@@ -19,18 +19,12 @@ on:
           - Gilgit-Baltistan
           - AJK
       district:
-        description: 'District(s): one district to drill down everywhere (e.g. Hyderabad), or comma-separated to control breakdown tables only (e.g. Lahore,Rawalpindi,Faisalabad). Leave blank for all.'
+        description: 'District(s)'
         required: false
         default: ''
         type: string
       institute:
-        description: >-
-          Institute to filter by. Leave blank for all institutes of the selected province.
-          Sindh: SELD, FGEI, SEF, Private, Non-Profit |
-          Punjab: SED-Punjab, PEF, Non-Profit, FGEI, FDE, Private |
-          KPK: ESED-KP, FGEI, Private |
-          Balochistan: FGEI, SED-Balochistan |
-          ICT: FDE | GB: ESED-GB, Private | AJK: ESED-GB, FGEI
+        description: 'Institute'
         required: false
         default: ''
         type: choice
