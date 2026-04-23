@@ -12,12 +12,11 @@ Go to **Actions → School Reports Automation → Run workflow** and fill in the
 |---|---|---|
 | Province | Province to filter by | Sindh |
 | District | Specific district, or leave blank for all | *(all)* |
-| Institute | Institute to filter by | SELD |
+| Institute | Institute to filter by, or leave blank for all institutes in the province | *(all)* |
 | Date From | Start date `MM/DD/YYYY` | 12/01/2025 |
 | Date To | End date `MM/DD/YYYY` | 01/31/2026 |
-| Active Schools: count by | Whether to count by submitted or approved activities | Submitted Activities |
-| Active Schools: minimum activity count | Minimum count to be considered active | 2 |
-| Districts for breakdown | Comma-separated list of districts (e.g. `Hyderabad,Sukkur`). Leave blank to auto-detect from the data, or use the default Sindh list if Province is Sindh | *(auto)* |
+| Status filter | `all`, `approved`, `pending`, or `rejected` | all |
+| Calculation to run | Which calculation to perform | Active Schools |
 | Google Sheet ID | Sheet to write results to, or leave blank for default | *(default)* |
 
 Click **Run workflow**. You will receive an email when complete.
