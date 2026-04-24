@@ -1,6 +1,6 @@
 # Steam Automation — School Reports Pipeline
 
-Fetches school activity reports from the Wrapper-Func API, calculates active schools, and uploads results to Google Sheets with an email notification.
+Fetches school activity reports from the Wrapper-Func API, calculates active schools, analyzes school registrations by district and classification, and uploads results to Google Sheets with an email notification.
 
 ---
 
@@ -11,27 +11,29 @@ Go to **Actions → School Reports Automation → Run workflow** and fill in the
 | Field | Description | Default |
 |---|---|---|
 | Province | Province to filter by | Sindh |
-| District | Specific district, or leave blank for all | *(all)* |
-| Institute | Institute to filter by, or leave blank for all institutes in the province | *(all)* |
+| District(s) | Leave blank for all districts, or enter one district to drill down, or comma-separated for breakdown tables only | *(all)* |
+| Institute | Leave blank for all institutes in the selected province | *(all)* |
 | Date From | Start date `MM/DD/YYYY` | 12/01/2025 |
 | Date To | End date `MM/DD/YYYY` | 01/31/2026 |
-| Status filter | `all`, `approved`, `pending`, or `rejected` | all |
-| Calculation to run | Which calculation to perform | Active Schools |
+| Active Schools: count by | Submitted Activities or Approved Activities | Submitted Activities |
+| Active Schools: minimum count | Minimum activity count to mark a school active | 2 |
 | Google Sheet ID | Sheet to write results to, or leave blank for default | *(default)* |
 
-Click **Run workflow**. You will receive an email when complete.
+Click **Run workflow**. You will receive an email when complete. The selected date range appears in the top-right of every sheet.
 
 > The pipeline also runs automatically on the **1st of every 2 months at 8am** using the default filters.
 
 ---
 
-## Calculations
+## Output Sheets (7 tabs)
 
-### Active Schools
-Counts how many times each school appears in the filtered reports. Schools that appear **2 or more times** are considered active. Results are written to Google Sheets with columns:
-
-| School Name | EMIS Code | Appearance Count |
-|---|---|---|
+1. **Reports - Summary** — Aggregate submission and approval counts by filter level (Overall, Province, Institute, and optionally District). When both Province and Institute are selected, they appear as separate rows.
+2. **Reports - By District** — Per-district submission, approval, and active school counts.
+3. **Active Schools** — Schools meeting the active schools criteria (by count of submitted or approved activities).
+4. **Schools - Summary** — Total schools registered, grouped by Institute and by Province.
+5. **Schools - By District** — Registered schools per district.
+6. **Schools - Level x Cycle** — Matrix of registered schools by Level (rows) and Cycle (columns).
+7. **Schools - Cycle x Level** — Matrix of registered schools by Cycle (rows) and Level (columns).
 
 ---
 
